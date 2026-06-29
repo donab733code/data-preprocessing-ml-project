@@ -1,0 +1,12 @@
+
+---
+
+# 🚫 5. .gitignore (important)
+
+Create `.gitignore`:
+
+```txt id="gh5"
+__pycache__/
+*.pyc
+.env
+.vscode/
