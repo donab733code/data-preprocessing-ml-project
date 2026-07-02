@@ -1,108 +1,159 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
-
-# ---------------------------------
-# 1. Import Dataset and Explore
-# ---------------------------------
-
-df = pd.read_csv("HousingData.csv")   # Replace with your CSV file name
-
-print("First 5 rows:")
-print(df.head())
-
-print("\nDataset Info:")
-print(df.info())
-
-print("\nMissing Values:")
-print(df.isnull().sum())
-
-print("\nData Types:")
-print(df.dtypes)
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # ---------------------------------
-# 2. Handle Missing Values
+# Load Dataset
 # ---------------------------------
+df = pd.read_csv("preprocessed_data.csv")
 
-# Select numerical columns
-num_cols = df.select_dtypes(include=np.number).columns
-
-# Fill missing values with mean
-imputer = SimpleImputer(strategy='mean')
-df[num_cols] = imputer.fit_transform(df[num_cols])
-
-print("\nMissing Values After Imputation:")
-print(df.isnull().sum())
-
-# ---------------------------------
-# 3. Categorical Encoding
-# ---------------------------------
-
-cat_cols = df.select_dtypes(exclude=np.number).columns
-
-if len(cat_cols) > 0:
-    from sklearn.preprocessing import LabelEncoder
-
-    encoder = LabelEncoder()
-
-    for col in cat_cols:
-        df[col] = encoder.fit_transform(df[col])
-
-    print("\nCategorical columns encoded successfully.")
-else:
-    print("\nNo categorical columns found. Encoding not required.")
-
-# ---------------------------------
-# 4. Standardize Numerical Features
-# ---------------------------------
-
-scaler = StandardScaler()
-df[num_cols] = scaler.fit_transform(df[num_cols])
-
-print("\nFirst 5 rows after Standardization:")
+print("="*60)
+print("DATA PREVIEW")
+print("="*60)
 print(df.head())
 
 # ---------------------------------
-# 5. Visualize Outliers
+# ================================
+# 1. SIMPLE LINEAR REGRESSION
+# ================================
 # ---------------------------------
 
-plt.figure(figsize=(14,6))
-sns.boxplot(data=df[num_cols])
-plt.xticks(rotation=45)
-plt.title("Boxplot Before Removing Outliers")
+print("\n" + "="*60)
+print("SIMPLE LINEAR REGRESSION (RM vs MEDV)")
+print("="*60)
+
+# Feature and target
+X_simple = df[['RM']]
+y = df['MEDV']
+
+# Split
+X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(
+    X_simple, y, test_size=0.2, random_state=42
+)
+
+# Train model
+simple_model = LinearRegression()
+simple_model.fit(X_train_s, y_train_s)
+
+# Predict
+y_pred_s = simple_model.predict(X_test_s)
+
+# Evaluation
+print("MAE :", mean_absolute_error(y_test_s, y_pred_s))
+print("MSE :", mean_squared_error(y_test_s, y_pred_s))
+print("R2  :", r2_score(y_test_s, y_pred_s))
+
+# ---------------------------------
+# FIXED PLOT (sorted line)
+# ---------------------------------
+sorted_idx = X_test_s['RM'].argsort()
+
+plt.figure(figsize=(7,5))
+plt.scatter(X_test_s, y_test_s, color='blue', label="Actual")
+plt.plot(
+    X_test_s['RM'].iloc[sorted_idx],
+    y_pred_s[sorted_idx],
+    color='red',
+    label="Prediction Line"
+)
+
+plt.xlabel("RM (Average Rooms)")
+plt.ylabel("MEDV (House Price)")
+plt.title("Simple Linear Regression")
+plt.legend()
 plt.show()
 
-# ---------------------------------
-# Remove Outliers using IQR
-# ---------------------------------
-
-Q1 = df[num_cols].quantile(0.25)
-Q3 = df[num_cols].quantile(0.75)
-IQR = Q3 - Q1
-
-df_clean = df[~((df[num_cols] < (Q1 - 1.5 * IQR)) |
-                (df[num_cols] > (Q3 + 1.5 * IQR))).any(axis=1)]
-
-print("\nOriginal Dataset Shape :", df.shape)
-print("Dataset Shape After Removing Outliers :", df_clean.shape)
 
 # ---------------------------------
-# Boxplot After Removing Outliers
+# ================================
+# 2. MULTIPLE LINEAR REGRESSION
+# ================================
 # ---------------------------------
 
-plt.figure(figsize=(14,6))
-sns.boxplot(data=df_clean[num_cols])
-plt.xticks(rotation=45)
-plt.title("Boxplot After Removing Outliers")
+print("\n" + "="*60)
+print("MULTIPLE LINEAR REGRESSION (All Features)")
+print("="*60)
+
+# Features and target
+X_multi = df.drop(columns=['MEDV'])
+y_multi = df['MEDV']
+
+# Split
+X_train_m, X_test_m, y_train_m, y_test_m = train_test_split(
+    X_multi, y_multi, test_size=0.2, random_state=42
+)
+
+# Train model
+multi_model = LinearRegression()
+multi_model.fit(X_train_m, y_train_m)
+
+# Predict
+y_pred_m = multi_model.predict(X_test_m)
+
+# Evaluation
+print("MAE :", mean_absolute_error(y_test_m, y_pred_m))
+print("MSE :", mean_squared_error(y_test_m, y_pred_m))
+print("R2  :", r2_score(y_test_m, y_pred_m))
+
+# ---------------------------------
+# Coefficients
+# ---------------------------------
+coeff_df = pd.DataFrame({
+    "Feature": X_multi.columns,
+    "Coefficient": multi_model.coef_
+}).sort_values(by="Coefficient", ascending=False)
+
+print("\nMODEL COEFFICIENTS")
+print("="*60)
+print(coeff_df)
+
+
+# ---------------------------------
+# ACTUAL vs PREDICTED PLOT (FIXED)
+# ---------------------------------
+plt.figure(figsize=(7,5))
+plt.scatter(y_test_m, y_pred_m, alpha=0.6)
+plt.xlabel("Actual Prices")
+plt.ylabel("Predicted Prices")
+plt.title("Multiple Linear Regression: Actual vs Predicted")
+
+# Perfect fit line
+plt.plot(
+    [y_multi.min(), y_multi.max()],
+    [y_multi.min(), y_multi.max()],
+    'r--'
+)
+
 plt.show()
 
-print("\nData Preprocessing Completed Successfully!")
 
-df_clean_raw = df[~((df[num_cols] < (Q1 - 1.5 * IQR)) |
-                    (df[num_cols] > (Q3 + 1.5 * IQR))).any(axis=1)]
+# ---------------------------------
+# RESIDUAL PLOT (IMPROVED)
+# ---------------------------------
+residuals = y_test_m - y_pred_m
 
-df_clean_raw.to_csv("preprocessed_data.csv", index=False)
+plt.figure(figsize=(7,5))
+plt.scatter(y_pred_m, residuals, alpha=0.6)
+plt.axhline(y=0, color='red', linestyle='--')
+plt.xlabel("Predicted Values")
+plt.ylabel("Residuals")
+plt.title("Residual Plot")
+plt.show()
+
+
+# ---------------------------------
+# RESIDUAL DISTRIBUTION
+# ---------------------------------
+plt.figure(figsize=(7,5))
+plt.hist(residuals, bins=30, edgecolor='black')
+plt.title("Residual Distribution")
+plt.xlabel("Error")
+plt.ylabel("Frequency")
+plt.show()
+
+
+print("\nEDA + LINEAR REGRESSION COMPLETED SUCCESSFULLY!")
